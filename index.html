@@ -1490,13 +1490,23 @@ async function deleteOrder(numEmp) {
   return r.ok;
 }
 
-async function deleteAllOrders() {
-  const r = await fsFetch(`${FS_BASE}/orders?pageSize=300`);
-  if (!r.ok) return;
-  const data = await r.json();
-  if (!data.documents) return;
-  await Promise.all(data.documents.map(doc =>
-    fsFetch(`https://firestore.googleapis.com/v1/${doc.name}`, { method: 'DELETE' })
+// Lunes 00:00 (hora local) de la semana en curso
+function inicioSemanaActual() {
+  const d = new Date(); d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+}
+
+// Pedidos de semanas anteriores. Los hechos desde el lunes de esta semana no se archivan
+// ni se borran: son de la semana en curso (p. ej. si se publica el menu ya con pedidos).
+function pedidosAnteriores() {
+  const ini = inicioSemanaActual();
+  return ordersData.filter(o => !o.fecha || new Date(o.fecha) < ini);
+}
+
+async function deleteOrders(lista) {
+  await Promise.all(lista.map(o =>
+    fsFetch(`${FS_BASE}/orders/${o._id || orderDocId(o.numEmpleado)}`, { method: 'DELETE' })
   ));
 }
 
@@ -1939,7 +1949,8 @@ async function guardarMenu() {
 
   menuData = { mes, semana, anio, dias };
 
-  const borrarPedidos = ordersData.length > 0 && confirm(`Hay ${ordersData.length} pedido(s). ¿Es semana nueva y quieres borrar los pedidos?\n\nSi solo estas corrigiendo el menu, dale Cancelar.`);
+  const anteriores = pedidosAnteriores();
+  const borrarPedidos = anteriores.length > 0 && confirm(`Hay ${anteriores.length} pedido(s) de semanas anteriores. ¿Es semana nueva y quieres archivarlos?\n\nLos pedidos hechos desde este lunes no se tocan.\nSi solo estas corrigiendo el menu, dale Cancelar.`);
 
   quantities = {};
   selections = {};
@@ -1949,10 +1960,11 @@ async function guardarMenu() {
     return;
   }
   if (borrarPedidos) {
-    archivarPedidos();
-    await Promise.all(Object.keys(historialData).map(k => saveHistorial(k)));
-    await deleteAllOrders();
-    ordersData = [];
+    archivarPedidos(anteriores);
+    const histOk = await Promise.all(Object.keys(historialData).map(k => saveHistorial(k)));
+    if (histOk.some(r => !r)) { showToast('Error al guardar historial, pedidos no archivados'); renderMenu(); return; }
+    await deleteOrders(anteriores);
+    await loadFromCloud();
     cortesiasData = [];
     await saveCortesias();
   }
@@ -2289,9 +2301,9 @@ function getQuincenaKey(fecha) {
   return `${a}-${m}-${q}`;
 }
 
-function archivarPedidos() {
-  if (ordersData.length === 0 && cortesiasData.length === 0) return;
-  ordersData.forEach(o => {
+function archivarPedidos(lista) {
+  if (lista.length === 0 && cortesiasData.length === 0) return;
+  lista.forEach(o => {
     const key = getQuincenaKey(o.fecha);
     if (!historialData[key]) historialData[key] = {};
     const emp = (o.numEmpleado || '0').replace(/^0+/, '') || '0';
@@ -2318,12 +2330,16 @@ function archivarPedidos() {
 }
 
 async function limpiarPedidos() {
-  if (confirm('Borrar todos los pedidos? Se guardaran en el historial para el reporte BUK.')) {
-    archivarPedidos();
+  await loadFromCloud();
+  const anteriores = pedidosAnteriores();
+  const actuales = ordersData.length - anteriores.length;
+  if (anteriores.length === 0 && cortesiasData.length === 0) { showToast('No hay pedidos de semanas anteriores para limpiar'); return; }
+  if (confirm(`Archivar ${anteriores.length} pedido(s) de semanas anteriores? Se guardaran en el historial para el reporte BUK.` + (actuales ? `\n\n${actuales} pedido(s) de esta semana se quedan.` : ''))) {
+    archivarPedidos(anteriores);
     const histOk = await Promise.all(Object.keys(historialData).map(k => saveHistorial(k)));
     if (histOk.some(r => !r)) { showToast('Error al guardar historial, pedidos no borrados'); return; }
-    await deleteAllOrders();
-    ordersData = [];
+    await deleteOrders(anteriores);
+    await loadFromCloud();
     cortesiasData = [];
     await saveCortesias();
     renderOrders();
