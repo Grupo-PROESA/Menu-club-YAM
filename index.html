@@ -2049,7 +2049,7 @@ function enviarOrdenCocinera() {
     msg += `${o.nombre}${o.numEmpleado ? ' #'+o.numEmpleado : ''}: ${dias} (${o.total})\n`;
   });
   if (cortesiasData.length) {
-    msg += `\n*Cortesias:*\n`;
+    msg += `\n*Cortesías:*\n`;
     cortesiasData.forEach(c => {
       const dias = menuData.dias.filter(d => c.dias && c.dias[d.dia]).map(d => d.dia.substring(0,3));
       msg += `${c.nombre}: ${dias.join(', ')} (${dias.length})\n`;
