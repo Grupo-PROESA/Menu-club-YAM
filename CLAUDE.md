@@ -9,8 +9,8 @@
 - **Proceso que resuelve:** pedidos de comida del comedor Club YAMA. Cada colaborador pide y cancela
   su comida de la semana, el comedor ve la lista y Talento Humano saca el reporte para el descuento
   de nómina (BUK).
-- **Área dueña / dueño del proceso:** [completar]
-- **Especialista responsable:** Jorge Anaya (Soluciones Digitales)
+- **Área dueña / dueño del proceso:** Talento Humano. Contacto en el área: Viviana Jiménez (Vivi)
+- **Especialista responsable:** Jorge Anaya (Soluciones Digitales), supervisa el sistema de los dos comedores
 - **Cómo se entra:** Portal PROESA → Proesa-Teams (Gestor de Personal) → menú **Comedor** →
   **Comedor Club YAMA**. El proveedor del comedor entra directo a la URL con el botón ADMIN y su PIN.
 - **URL:** https://comedor-yama.grupoproesa.mx · proyecto Firebase `menu-proesa-yama`
