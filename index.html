@@ -1997,7 +1997,7 @@ function compartirMenuWhatsApp() {
 }
 
 function enviarOrdenCocinera() {
-  if (!ordersData.length) { showToast('No hay pedidos'); return; }
+  if (!ordersData.length && !cortesiasData.length) { showToast('No hay pedidos'); return; }
 
   const dayTotals = {};
   const dayOpciones = {};
@@ -2012,6 +2012,10 @@ function enviarOrdenCocinera() {
         dayOpciones[d.dia][opcion] = (dayOpciones[d.dia][opcion] || 0) + qty;
       }
     });
+  });
+  // Las cortesias tambien se cocinan (plato del dia)
+  cortesiasData.forEach(c => {
+    menuData.dias.forEach(d => { if (c.dias && c.dias[d.dia]) dayTotals[d.dia] += 1; });
   });
 
   const grandTotal = Object.values(dayTotals).reduce((a,b)=>a+b, 0);
@@ -2044,6 +2048,13 @@ function enviarOrdenCocinera() {
     }).join(', ');
     msg += `${o.nombre}${o.numEmpleado ? ' #'+o.numEmpleado : ''}: ${dias} (${o.total})\n`;
   });
+  if (cortesiasData.length) {
+    msg += `\n*Cortesías:*\n`;
+    cortesiasData.forEach(c => {
+      const dias = menuData.dias.filter(d => c.dias && c.dias[d.dia]).map(d => d.dia.substring(0,3));
+      msg += `${c.nombre}: ${dias.join(', ')} (${dias.length})\n`;
+    });
+  }
 
   window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
