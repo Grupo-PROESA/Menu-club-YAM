@@ -96,9 +96,15 @@ service cloud.firestore {
         || (doc == 'catalogo' && isSuper());
     }
 
-    // --- Historial por quincena (los empleados ven su acumulado) ---
+    // --- Historial por quincena: solo admin (los colaboradores ven su resumen en mis_comidas) ---
     match /historial/{quincena} {
-      allow read: if signedIn();
+      allow read, write: if isAdmin();
+    }
+
+    // --- Resumen de comidas por colaborador: cada quien solo ve el suyo ---
+    match /mis_comidas/{id} {
+      allow get: if isAdmin() || (numEmp() != null && numEmp() == id);
+      allow list: if isAdmin();
       allow write: if isAdmin();
     }
 

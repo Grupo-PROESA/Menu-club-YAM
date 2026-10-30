@@ -1387,6 +1387,7 @@ let ordersData = [];
 let cortesiasData = [];
 let catalogoData = {};
 let historialData = {};
+let historialOk = false;   // admin: el historial completo se cargo bien (requisito para archivar)
 let comentariosData = [];
 let quantities = {};
 let selections = {};
@@ -1462,18 +1463,30 @@ async function loadFromCloud() {
     cortesiasData = Array.isArray(cortDoc?.items) ? cortDoc.items : [];
     if (catDoc && typeof catDoc === 'object') catalogoData = catDoc;
     comentariosData = comList;
-    const hResp = await fsFetch(`${FS_BASE}/historial?pageSize=100`);
-    if (hResp.ok) {
-      const hData = await hResp.json();
-      historialData = {};
-      if (hData.documents) {
-        for (const doc of hData.documents) {
-          const key = doc.name.split('/').pop();
-          const obj = {};
-          for (const [k, v] of Object.entries(doc.fields || {})) obj[k] = fsToJs(v);
-          historialData[key] = obj;
+    // Historial: el admin carga el de todos. El colaborador solo su resumen (mis_comidas/{numEmp}),
+    // para que el navegador nunca reciba las comidas de otras personas.
+    historialOk = false;
+    if (adminAuth) {
+      const hResp = await fsFetch(`${FS_BASE}/historial?pageSize=100`);
+      if (hResp.ok) {
+        const hData = await hResp.json();
+        historialData = {};
+        if (hData.documents) {
+          for (const doc of hData.documents) {
+            const key = doc.name.split('/').pop();
+            const obj = {};
+            for (const [k, v] of Object.entries(doc.fields || {})) obj[k] = fsToJs(v);
+            historialData[key] = obj;
+          }
         }
+        historialOk = true;
       }
+    } else {
+      historialData = {};
+      const mias = AUTH.numEmp ? await fsRead(`mis_comidas/${AUTH.numEmp}`) : null;
+      Object.entries(mias?.quincenas || {}).forEach(([q, comidas]) => {
+        historialData[q] = { [AUTH.numEmp]: { comidas } };
+      });
     }
     setSyncStatus('ok', 'Sincronizado');
     return true;
@@ -1508,6 +1521,26 @@ async function deleteOrders(lista) {
   await Promise.all(lista.map(o =>
     fsFetch(`${FS_BASE}/orders/${o._id || orderDocId(o.numEmpleado)}`, { method: 'DELETE' })
   ));
+}
+
+// Comidas por quincena de un colaborador, sumando su numero aunque este escrito distinto (ceros, minusculas)
+function resumenComidas(historial, id) {
+  const quincenas = {};
+  Object.entries(historial).forEach(([q, emps]) => {
+    Object.entries(emps || {}).forEach(([emp, h]) => {
+      if (emp.startsWith('_') || orderDocId(emp) !== id) return;
+      quincenas[q] = (quincenas[q] || 0) + ((h && h.comidas) || 0);
+    });
+  });
+  return quincenas;
+}
+
+// Actualiza mis_comidas/{numEmp} de los colaboradores que se acaban de archivar
+async function actualizarMisComidas(lista) {
+  const ids = [...new Set(lista.map(o => orderDocId(o.numEmpleado)))];
+  const oks = await Promise.all(ids.map(id =>
+    fsWrite(`mis_comidas/${id}`, { quincenas: resumenComidas(historialData, id), actualizado: new Date().toISOString() })));
+  return oks.every(Boolean);
 }
 
 async function saveHistorial(key) {
@@ -1950,6 +1983,7 @@ async function guardarMenu() {
   menuData = { mes, semana, anio, dias };
 
   const anteriores = pedidosAnteriores();
+  if (anteriores.length > 0 && !historialOk) { showToast('No se pudo cargar el historial. Recarga la página e intenta de nuevo'); return; }
   const borrarPedidos = anteriores.length > 0 && confirm(`Hay ${anteriores.length} pedido(s) de semanas anteriores. ¿Es semana nueva y quieres archivarlos?\n\nLos pedidos hechos desde este lunes no se tocan.\nSi solo estas corrigiendo el menu, dale Cancelar.`);
 
   quantities = {};
@@ -1963,6 +1997,7 @@ async function guardarMenu() {
     archivarPedidos(anteriores);
     const histOk = await Promise.all(Object.keys(historialData).map(k => saveHistorial(k)));
     if (histOk.some(r => !r)) { showToast('Error al guardar historial, pedidos no archivados'); renderMenu(); return; }
+    await actualizarMisComidas(anteriores);
     await deleteOrders(anteriores);
     await loadFromCloud();
     cortesiasData = [];
@@ -2345,10 +2380,12 @@ async function limpiarPedidos() {
   const anteriores = pedidosAnteriores();
   const actuales = ordersData.length - anteriores.length;
   if (anteriores.length === 0 && cortesiasData.length === 0) { showToast('No hay pedidos de semanas anteriores para limpiar'); return; }
+  if (!historialOk) { showToast('No se pudo cargar el historial. Recarga la página e intenta de nuevo'); return; }
   if (confirm(`Archivar ${anteriores.length} pedido(s) de semanas anteriores? Se guardaran en el historial para el reporte BUK.` + (actuales ? `\n\n${actuales} pedido(s) de esta semana se quedan.` : ''))) {
     archivarPedidos(anteriores);
     const histOk = await Promise.all(Object.keys(historialData).map(k => saveHistorial(k)));
     if (histOk.some(r => !r)) { showToast('Error al guardar historial, pedidos no borrados'); return; }
+    await actualizarMisComidas(anteriores);
     await deleteOrders(anteriores);
     await loadFromCloud();
     cortesiasData = [];
