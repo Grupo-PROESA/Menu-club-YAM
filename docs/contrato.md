@@ -15,7 +15,8 @@ En Firestore, proyecto `menu-proesa-yama`.
 | Dato | Descripción |
 |---|---|
 | `orders/{numEmp}` | Pedido de la semana en curso de cada colaborador: nombre, número, días, opción elegida, total y fecha |
-| `historial/{AAAA-M-Qn}` | Comidas archivadas por quincena y por colaborador, más las cortesías archivadas. Base del reporte para BUK |
+| `historial/{AAAA-M-Qn}` | Comidas archivadas por quincena y por colaborador, más las cortesías archivadas. Base del reporte para BUK. Solo admin |
+| `mis_comidas/{numEmp}` | Resumen de comidas por quincena de cada colaborador. Cada quien solo lee el suyo |
 | `config/menu` | Menú publicado de la semana (días, entrada, plato fuerte, alternativa, postre) |
 | `config/catalogo` | Catálogo de empleados: número y nombre |
 | `config/cortesias` | Cortesías registradas (nombre y días) |

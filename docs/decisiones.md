@@ -11,6 +11,7 @@ Decisiones de negocio y técnicas relevantes de la app, con fecha y quién decid
 | 2026-10-21 | Los proyectos de Firebase pasan a la cuenta de empresa | Jorge Anaya |
 | 2026-10-27 | Al archivar solo se toman pedidos de semanas anteriores (después de que se archivaron pedidos de la semana en curso) | Jorge Anaya |
 | 2026-10-28 | La orden a cocina incluye cortesías | Jorge Anaya, a pedido de Talento Humano |
+| 2026-10-30 | El historial de todos solo lo ve el admin. Cada colaborador ve su resumen en `mis_comidas` | Jorge Anaya |
 
 Excepciones al playbook (R1, R2, R3, R5): ver `CLAUDE.md`. Aprobadas por Luis (TI) en octubre de 2026,
 sin issue formal en el repo del playbook.

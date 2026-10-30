@@ -30,6 +30,9 @@ beforeEach(async () => {
     await setDoc(doc(db, 'config/menu'), { mes: 'Octubre' });
     await setDoc(doc(db, 'orders/456'), pedido('456'));
     await setDoc(doc(db, 'orders/789'), pedido('0789')); // pedido viejo con cero a la izquierda
+    await setDoc(doc(db, 'historial/2026-10-Q2'), { '123': { nombre: 'Prueba', comidas: 2 }, '456': { nombre: 'Otro', comidas: 3 } });
+    await setDoc(doc(db, 'mis_comidas/123'), { quincenas: { '2026-10-Q2': 2 } });
+    await setDoc(doc(db, 'mis_comidas/456'), { quincenas: { '2026-10-Q2': 3 } });
   });
 });
 
@@ -124,4 +127,28 @@ test('super con PIN escribe el catalogo; nadie lee config/secrets', async () => 
   await assertSucceeds(setDoc(doc(db, 'config/catalogo'), { '123': { nombre: 'Prueba' } }));
   await assertFails(getDoc(doc(db, 'config/secrets')));
   await assertFails(getDoc(doc(emp('123'), 'config/secrets')));
+});
+
+test('historial: el colaborador ya no lo lee, solo su resumen en mis_comidas', async () => {
+  const db = emp('123');
+  await assertFails(getDoc(doc(db, 'historial/2026-10-Q2')));
+  await assertFails(getDocs(collection(db, 'historial')));
+  await assertSucceeds(getDoc(doc(db, 'mis_comidas/123')));
+  await assertFails(getDoc(doc(db, 'mis_comidas/456')));
+  await assertFails(getDocs(collection(db, 'mis_comidas')));
+  await assertFails(setDoc(doc(db, 'mis_comidas/123'), { quincenas: { '2026-10-Q2': 99 } }));
+});
+
+test('historial: anonimo no lee ni historial ni resumenes', async () => {
+  const db = anon();
+  await assertFails(getDoc(doc(db, 'historial/2026-10-Q2')));
+  await assertFails(getDoc(doc(db, 'mis_comidas/123')));
+});
+
+test('historial: el admin con PIN lee el historial y escribe los resumenes', async () => {
+  const db = await adminDb();
+  await assertSucceeds(getDocs(collection(db, 'historial')));
+  await assertSucceeds(setDoc(doc(db, 'historial/2026-10-Q2'), { '123': { nombre: 'Prueba', comidas: 3 } }));
+  await assertSucceeds(setDoc(doc(db, 'mis_comidas/123'), { quincenas: { '2026-10-Q2': 3 } }));
+  await assertSucceeds(getDocs(collection(db, 'mis_comidas')));
 });
