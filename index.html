@@ -530,6 +530,19 @@ body {
 
 /* ORDERS */
 .orders-log { margin-top: 30px; }
+
+/* PEDIDOS DE HOY (admin) */
+.hoy-card { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--proesa-teal-600); border-radius: 12px; padding: 18px 20px; margin: 10px 0 24px; }
+.hoy-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hoy-head h4 { margin: 0; color: var(--proesa-navy-700); font-size: 1.05rem; }
+.hoy-ayuda-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: #fff; color: var(--proesa-navy-700); font-weight: 700; cursor: pointer; }
+.hoy-ayuda-texto { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); line-height: 1.5; }
+.hoy-total { font-size: 1.6rem; font-weight: 800; color: var(--proesa-navy-700); margin: 10px 0 4px; }
+.hoy-platillos { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.hoy-platillo { background: var(--proesa-teal-100); color: var(--proesa-teal-900); border-radius: 20px; padding: 4px 12px; font-size: 0.85rem; font-weight: 600; }
+.hoy-lista { font-size: 0.88rem; line-height: 1.7; margin: 0 0 12px; padding-left: 18px; }
+.hoy-vacio { color: var(--muted); font-size: 0.9rem; margin: 10px 0; }
+.admin-btn-ayuda { font-size: 0.78rem; color: var(--muted); line-height: 1.6; margin: -6px 0 14px; }
 .orders-log h3 { margin-bottom: 15px; }
 
 .orders-table-wrap { overflow-x: auto; }
@@ -982,6 +995,16 @@ body { padding-bottom: 80px; }
 <div class="admin-panel" id="adminPanel">
   <h3>Administrar Menu</h3>
 
+  <!-- PEDIDOS DE HOY -->
+  <div class="hoy-card">
+    <div class="hoy-head">
+      <h4 id="hoyTitulo">Pedidos de hoy</h4>
+      <button class="hoy-ayuda-btn" onclick="document.getElementById('hoyAyuda').hidden = !document.getElementById('hoyAyuda').hidden" title="¿Qué es esto?" aria-label="Ayuda de Pedidos de hoy">?</button>
+    </div>
+    <p class="hoy-ayuda-texto" id="hoyAyuda" hidden>Aquí ves solo lo que hay que preparar hoy: cuántas comidas, de qué platillo y para quién, incluidas las cortesías. Con "Enviar orden de hoy" mandas este resumen por WhatsApp. La tabla de "Pedidos Recibidos", más abajo, muestra toda la semana.</p>
+    <div id="hoyContenido"></div>
+  </div>
+
   <div class="admin-form-section">
     <h4>Datos de la Semana</h4>
     <div class="form-row">
@@ -1070,6 +1093,12 @@ body { padding-bottom: 80px; }
       <button class="btn-export" onclick="exportarCSV()">Exportar Excel</button>
       <button class="btn-export" onclick="mostrarExportBUK()" style="background:linear-gradient(135deg,#8e44ad,#3498db);">Exportar BUK</button>
       <button class="btn-export" onclick="mostrarExportFactura()" style="background:linear-gradient(135deg,#27ae60,#2ecc71);">Conciliar Factura</button>
+    </div>
+    <div class="admin-btn-ayuda">
+      <strong>Enviar Orden a Cocina:</strong> manda por WhatsApp los pedidos y cortesías de toda la semana.
+      <strong>Exportar Excel:</strong> descarga los pedidos de la semana.
+      <strong>Exportar BUK:</strong> archivo de descuento de nómina por quincena.
+      <strong>Conciliar Factura:</strong> reporte por quincena para comparar con la factura del proveedor.
     </div>
     <div id="ordersContainer"></div>
   </div>
@@ -2095,7 +2124,64 @@ function enviarOrdenCocinera() {
 }
 
 // --- ORDERS TABLE ---
+// --- PEDIDOS DE HOY ---
+// Lo que hay que preparar hoy: total, platillos, personas y cortesias del dia del menu que es hoy
+function resumenHoy(fecha) {
+  const hoy = (fecha || new Date()).getDay();
+  const dia = menuData.dias.find(d => DAY_MAP[d.dia.toLowerCase().trim()] === hoy);
+  if (!dia) return null;
+  const platillos = {};
+  const personas = [];
+  ordersData.forEach(o => {
+    const qty = (o.detalle && o.detalle[dia.dia]) || 0;
+    if (qty <= 0) return;
+    const platillo = (o.opciones && o.opciones[dia.dia]) || dia.platoFuerte;
+    platillos[platillo] = (platillos[platillo] || 0) + qty;
+    personas.push({ num: o.numEmpleado || '', nombre: o.nombre, platillo });
+  });
+  const cortesias = cortesiasData.filter(c => c.dias && c.dias[dia.dia]).map(c => c.nombre);
+  if (cortesias.length) platillos[dia.platoFuerte] = (platillos[dia.platoFuerte] || 0) + cortesias.length;
+  personas.sort((a, b) => (parseInt(a.num) || 99999) - (parseInt(b.num) || 99999));
+  const total = Object.values(platillos).reduce((a, b) => a + b, 0);
+  return { dia, total, platillos, personas, cortesias };
+}
+
+function renderHoy() {
+  const cont = document.getElementById('hoyContenido');
+  if (!cont) return;
+  const r = resumenHoy();
+  if (!r) {
+    document.getElementById('hoyTitulo').textContent = 'Pedidos de hoy';
+    cont.innerHTML = '<p class="hoy-vacio">Hoy no hay servicio en el menú publicado.</p>';
+    return;
+  }
+  document.getElementById('hoyTitulo').textContent = `Pedidos de hoy · ${r.dia.dia} ${r.dia.fecha}`;
+  if (!r.total) { cont.innerHTML = '<p class="hoy-vacio">Todavía no hay pedidos ni cortesías para hoy.</p>'; return; }
+  let html = `<div class="hoy-total">${r.total} comida${r.total !== 1 ? 's' : ''}</div>`;
+  html += '<div class="hoy-platillos">' + Object.entries(r.platillos).map(([p, n]) => `<span class="hoy-platillo">${esc(p)}: ${n}</span>`).join('') + '</div>';
+  html += '<ol class="hoy-lista">' + r.personas.map(p => `<li>${p.num ? '#' + esc(p.num) + ' ' : ''}${esc(p.nombre)} · ${esc(p.platillo)}</li>`).join('');
+  html += r.cortesias.map(n => `<li>${esc(n)} · Cortesía</li>`).join('') + '</ol>';
+  html += '<button class="btn-export" onclick="enviarOrdenHoy()" style="background:#25d366;">Enviar orden de hoy</button>';
+  cont.innerHTML = html;
+}
+
+function enviarOrdenHoy() {
+  const r = resumenHoy();
+  if (!r || !r.total) { showToast('Hoy no hay pedidos'); return; }
+  let msg = `*ORDEN DE HOY · ${r.dia.dia} ${r.dia.fecha}*\n`;
+  msg += `Total: ${r.total} comida${r.total !== 1 ? 's' : ''}\n`;
+  Object.entries(r.platillos).forEach(([p, n]) => { msg += `  - ${p}: ${n}\n`; });
+  msg += `\n*Detalle:*\n`;
+  r.personas.forEach(p => { msg += `${p.nombre}${p.num ? ' #' + p.num : ''}: ${p.platillo}\n`; });
+  if (r.cortesias.length) {
+    msg += `\n*Cortesías:*\n`;
+    r.cortesias.forEach(n => { msg += `${n}\n`; });
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
 function renderOrders() {
+  renderHoy();
   const c = document.getElementById('ordersContainer');
   if (!ordersData.length) { c.innerHTML = '<div class=”no-orders”>Aun no hay pedidos</div>'; return; }
 

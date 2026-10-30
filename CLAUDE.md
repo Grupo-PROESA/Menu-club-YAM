@@ -49,6 +49,8 @@ Los PIN viven en Firestore `config/secrets` (nadie los lee desde el navegador) y
 - **Archivar solo semanas anteriores** (27 oct 2026, Jorge Anaya): "Limpiar Pedidos" y "publicar el
   menú de semana nueva" solo archivan pedidos con fecha anterior al lunes de la semana en curso.
 - **La orden a cocina incluye las cortesías** (28 oct 2026, a pedido de Talento Humano).
+- **Pedidos de hoy** (30 oct 2026): arriba del panel de admin, el total del día, los platillos, quién
+  pidió y las cortesías, con el botón "Enviar orden de hoy". La tabla de la semana sigue igual.
 - **Cada colaborador solo ve su historial** (30 oct 2026, Jorge Anaya): el historial completo solo lo
   lee el admin. Al archivar se actualiza `mis_comidas/{numEmp}` de cada colaborador archivado.
 
@@ -66,8 +68,8 @@ No ofrece datos a otras apps (ver `docs/contrato.md`). Lo que **consume**:
   `proesa.css`.
 - Reglas de acceso a los datos: `firestore.rules`. Se publican con `firebase deploy --only firestore:rules`.
 - Entrada desde el Gestor: `functions/index.js` (Cloud Function `ssoCallback`, Node 22, 2nd gen).
-- Pruebas: `tests/rules.test.js` (reglas, emulador de Firestore), `tests/orden-cocina.test.js` y
-  `tests/historial.test.js`.
+- Pruebas: `tests/rules.test.js` (reglas, emulador de Firestore), `tests/orden-cocina.test.js`,
+  `tests/pedidos-hoy.test.js` y `tests/historial.test.js`.
 - Scripts de una sola vez (se corren en Cloud Shell): `setup/llenar_mis_comidas.py`.
 - Publicación: GitHub Pages publica `main` solo. La Function y las reglas se despliegan a mano con
   firebase CLI (ver README).
