@@ -736,6 +736,10 @@ body { padding-bottom: 80px; }
 }
 
 .order-toggle.locked { opacity: 0.7; cursor: default; pointer-events: none; }
+/* Dia que el colaborador ya tiene pedido: se ve distinto de "Pedir" y de un dia recien elegido */
+.order-toggle.ya-pedido { background: #e6f4f0; border-color: var(--green); color: var(--green-dark); cursor: default; }
+.order-toggle.ya-pedido:hover { border-color: var(--green); color: var(--green-dark); }
+.ya-pedido-nota { margin-top: 6px; font-size: 0.75rem; color: var(--muted); text-align: center; }
 
 /* BUZON DE COMENTARIOS */
 .buzon-btn-float {
@@ -1666,16 +1670,23 @@ function renderMenu() {
   const numEmpInput = document.getElementById('numEmpleado');
   const numEmpVal = numEmpInput ? numEmpInput.value.trim() : '';
   const numEmpNorm = numEmpVal ? (numEmpVal.toUpperCase().replace(/^0+/, '') || '0') : '';
-  const pedidoPrevioActivo = numEmpNorm && ordersData.some(o => (o.numEmpleado || '').toUpperCase().replace(/^0+/, '') === numEmpNorm);
+  // Dias que este numero ya tiene pedidos: se marcan "Ya pedido" y no cuentan en la barra de abajo
+  const pedidoActual = numEmpNorm ? ordersData.find(o => (o.numEmpleado || '').toUpperCase().replace(/^0+/, '') === numEmpNorm) : null;
+  const diasYaPedidos = (pedidoActual && pedidoActual.detalle) || {};
 
   menuData.dias.forEach((d, i) => {
     quantities[i] = quantities[i] || 0;
-    if (!selections[i]) selections[i] = 'principal';
     const hasAlt = d.platoAlternativo && d.platoAlternativo.trim().replace(/-/g, '').length > 0;
+    const yaPedido = !!diasYaPedidos[d.dia];
+    if (yaPedido) {
+      quantities[i] = 0;
+      const op = pedidoActual.opciones && pedidoActual.opciones[d.dia];
+      selections[i] = hasAlt && op === d.platoAlternativo ? 'alternativa' : 'principal';
+    }
+    if (!selections[i]) selections[i] = 'principal';
 
     const card = document.createElement('div');
     const passed = !adminVisible && isDayPassed(d.dia);
-    const yaPedido = quantities[i] > 0 && pedidoPrevioActivo;
     card.className = 'day-card' + (passed && !yaPedido ? ' day-passed' : '');
     if (passed && !yaPedido) { quantities[i] = 0; }
 
@@ -1719,9 +1730,12 @@ function renderMenu() {
         <div class="meal-name">${d.postre}</div>
       </div>
       <div class="day-order">
-        <button class="order-toggle ${quantities[i]>0?'active':''} ${passed && yaPedido ? 'locked' : ''}" id="qty-${i}" onclick="toggleDay(${i})">
-          ${passed && yaPedido ? '&#10003; Ya pedido' : quantities[i]>0 ? '&#10003; Pedido' : 'Pedir'}
-        </button>
+        ${yaPedido ? `
+        <button class="order-toggle ya-pedido" id="qty-${i}" onclick="avisoYaPedido()">&#10003; Ya pedido</button>
+        ${passed ? '' : '<div class="ya-pedido-nota">Para quitarlo usa Cancelar Pedido</div>'}` : `
+        <button class="order-toggle ${quantities[i]>0?'active':''}" id="qty-${i}" onclick="toggleDay(${i})">
+          ${quantities[i]>0 ? '&#10003; Pedido' : 'Pedir'}
+        </button>`}
       </div>
     `;
     grid.appendChild(card);
@@ -1729,33 +1743,27 @@ function renderMenu() {
   updateSummary();
 }
 
+// Al cambiar el numero se limpia lo elegido; renderMenu marca los dias que ese numero ya tiene pedidos
 function preMarcarDias() {
-  const num = document.getElementById('numEmpleado').value.trim();
-  if (!num || num.length < 2) {
-    quantities = {};
-    selections = {};
-    renderMenu();
-    return;
-  }
-  const numNorm = num.toUpperCase().replace(/^0+/, '') || '0';
-  const pedido = ordersData.find(o => (o.numEmpleado || '').toUpperCase().replace(/^0+/, '') === numNorm);
   quantities = {};
   selections = {};
-  if (pedido && pedido.detalle) {
-    menuData.dias.forEach((d, i) => {
-      if (pedido.detalle[d.dia]) {
-        quantities[i] = 1;
-        if (pedido.opciones && pedido.opciones[d.dia]) {
-          const esAlt = pedido.opciones[d.dia] === d.platoAlternativo;
-          selections[i] = esAlt ? 'alternativa' : 'principal';
-        }
-      }
-    });
-  }
   renderMenu();
 }
 
+function diaYaPedido(i) {
+  const v = (document.getElementById('numEmpleado').value || '').trim();
+  if (!v) return false;
+  const num = v.toUpperCase().replace(/^0+/, '') || '0';
+  const p = ordersData.find(o => (o.numEmpleado || '').toUpperCase().replace(/^0+/, '') === num);
+  return !!(p && p.detalle && menuData.dias[i] && p.detalle[menuData.dias[i].dia]);
+}
+
+function avisoYaPedido() {
+  showToast('Ese día ya lo tienes pedido. Para quitarlo usa Cancelar Pedido');
+}
+
 function selectOption(i, opt) {
+  if (diaYaPedido(i)) { avisoYaPedido(); return; }
   selections[i] = opt;
   renderMenu();
 }
