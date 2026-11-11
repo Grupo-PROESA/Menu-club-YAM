@@ -92,4 +92,3 @@ issue formal en el repo del playbook.
 - El catálogo se captura a mano y no se sincroniza con BUK ni con el Gestor.
 - Las cortesías se archivan completas al publicar el menú o limpiar pedidos (no solo las de semanas
   anteriores).
-- El aviso al intentar pedir fuera de horario dice "Se abren a las 5:00 PM", pero abren a las 7:00.
