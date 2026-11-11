@@ -304,28 +304,6 @@ body {
 #misPedidos .mp-title { font-weight: 700; margin-bottom: 6px; }
 #misPedidos .mp-dia { padding: 2px 0; }
 
-/* SUMMARY BAR */
-.summary-bar {
-  position: fixed;
-  bottom: 0; left: 0; right: 0;
-  background: rgba(255,255,255,0.95);
-  backdrop-filter: blur(15px);
-  border-top: 1px solid var(--border);
-  padding: 14px 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 20px;
-  z-index: 100;
-  transform: translateY(100%);
-  transition: transform 0.3s ease;
-  flex-wrap: wrap;
-}
-
-.summary-bar.visible { transform: translateY(0); }
-.summary-total { font-size: 0.95rem; color: var(--white); }
-.summary-total strong { color: var(--gold); }
-
 .btn-send {
   background: linear-gradient(135deg, var(--gold), var(--teal));
   color: #fff; border: none;
@@ -614,7 +592,6 @@ body {
 @media (max-width: 600px) {
   .header h1 { font-size: 1.6rem; }
   .menu-grid { grid-template-columns: 1fr; padding: 15px; gap: 15px; }
-  .summary-bar { flex-direction: column; gap: 10px; padding: 12px 15px; }
   .modal { padding: 20px; }
   .form-row { flex-direction: column; }
   .form-group { min-width: 100%; }
@@ -643,7 +620,6 @@ body { padding-bottom: 80px; }
 
 .ordering-locked .nombre-section,
 .ordering-locked .menu-grid,
-.ordering-locked .summary-bar,
 .ordering-locked .water-note { opacity: 0.3; pointer-events: none; user-select: none; }
 
 /* DAY PASSED LOCK */
@@ -936,12 +912,6 @@ body { padding-bottom: 80px; }
 
 <!-- MENU GRID -->
 <div class="menu-grid" id="menuGrid"></div>
-
-<!-- SUMMARY BAR -->
-<div class="summary-bar" id="summaryBar">
-  <div class="summary-total" id="summaryText"></div>
-  <button class="btn-send" onclick="enviarPedido()">Enviar Pedido</button>
-</div>
 
 <!-- CANCEL BUTTON -->
 <!-- BUZON BUTTON -->
@@ -1733,14 +1703,11 @@ function renderMenu() {
         ${yaPedido ? `
         <button class="order-toggle ya-pedido" id="qty-${i}" onclick="avisoYaPedido()">&#10003; Ya pedido</button>
         ${passed ? '' : '<div class="ya-pedido-nota">Para quitarlo usa Cancelar Pedido</div>'}` : `
-        <button class="order-toggle ${quantities[i]>0?'active':''}" id="qty-${i}" onclick="toggleDay(${i})">
-          ${quantities[i]>0 ? '&#10003; Pedido' : 'Pedir'}
-        </button>`}
+        <button class="order-toggle" id="qty-${i}" onclick="pedirDia(${i})">Pedir</button>`}
       </div>
     `;
     grid.appendChild(card);
   });
-  updateSummary();
 }
 
 // Al cambiar el numero se limpia lo elegido; renderMenu marca los dias que ese numero ya tiene pedidos
@@ -1768,40 +1735,28 @@ function selectOption(i, opt) {
   renderMenu();
 }
 
-function changeQty(i, delta) {
+// "Pedir" guarda ese dia en ese momento (antes habia que confirmar con "Enviar Pedido" y mucha
+// gente no lo hacia: pedido de Talento Humano, nov 2026)
+let guardandoPedido = false;
+async function pedirDia(i) {
+  if (guardandoPedido) return;
   if (!adminVisible && menuData.dias[i] && isDayPassed(menuData.dias[i].dia)) return;
-  quantities[i] = Math.max(0, Math.min(1, (quantities[i]||0) + delta));
-  const el = document.getElementById(`qty-${i}`);
-  el.innerHTML = quantities[i] > 0 ? '&#10003; Pedido' : 'Pedir';
-  el.className = 'order-toggle' + (quantities[i]>0?' active':'');
-  updateSummary();
-}
-
-function toggleDay(i) {
-  if (!adminVisible && menuData.dias[i] && isDayPassed(menuData.dias[i].dia)) return;
-  quantities[i] = quantities[i] > 0 ? 0 : 1;
-  const el = document.getElementById(`qty-${i}`);
-  el.innerHTML = quantities[i] > 0 ? '&#10003; Pedido' : 'Pedir';
-  el.className = 'order-toggle' + (quantities[i]>0?' active':'');
-  updateSummary();
-}
-
-function updateSummary() {
-  const total = Object.values(quantities).reduce((a,b)=>a+b, 0);
-  const bar = document.getElementById('summaryBar');
-  if (total > 0) {
-    bar.classList.add('visible');
-    const det = menuData.dias.map((d,i) => quantities[i]>0 ? `${d.dia}: ${quantities[i]}` : null).filter(Boolean).join(' | ');
-    document.getElementById('summaryText').innerHTML = `<strong>${total}</strong> comida${total!==1?'s':''} &middot; ${det}`;
-  } else {
-    bar.classList.remove('visible');
+  guardandoPedido = true;
+  const btn = document.getElementById(`qty-${i}`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  quantities = { [i]: 1 };
+  try { await enviarPedido(); }
+  finally {
+    guardandoPedido = false;
+    quantities = {};
+    renderMenu();
   }
 }
 
 let ultimosDiasNuevos = null;
 
 async function enviarPedido() {
-  if (!isOrderingOpen() && !adminVisible) { showToast('Pedidos cerrados. Se abren a las 5:00 PM'); return; }
+  if (!isOrderingOpen() && !adminVisible) { showToast('Pedidos cerrados. Se abren a las 7:00 AM'); return; }
   if (!adminVisible && !AUTH.numEmp) { showToast('Entra desde el Gestor de Personal para pedir'); return; }
   const numEmp = adminVisible ? document.getElementById('numEmpleado').value.trim() : AUTH.numEmp;
   if (!numEmp) { showToast('Escribe tu numero de empleado'); document.getElementById('numEmpleado').focus(); return; }
